@@ -1,0 +1,4 @@
+#!/bin/bash
+/usr/bin/certbot renew --quiet --deploy-hook /root/deploy_hook.sh
+service lighttpd restart
+exit 0

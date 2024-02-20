@@ -1,0 +1,26 @@
+# Password for web ui is 'mypassword'
+# Change with 'pihole -a -p'
+WEBPASSWORD=1fd0c883fcfec2463c192fd17d2537029ac0c3eaed64ac6812ca258d5303c741
+ADMIN_EMAIL={{ admin_email }}
+WEBUIBOXEDLAYOUT=boxed
+WEBTHEME=default-dark
+DNSSEC=false
+REV_SERVER=true
+REV_SERVER_CIDR=192.168.0.0/16
+REV_SERVER_TARGET={{ rev_server_target }}
+REV_SERVER_DOMAIN={{ fqdn }}
+BLOCKING_ENABLED=true
+PIHOLE_INTERFACE={{ ansible_default_ipv4.interface }}
+IPV4_ADDRESS={{ ansible_default_ipv4.address }}/24
+IPV6_ADDRESS=
+QUERY_LOGGING=true
+INSTALL_WEB_SERVER=true
+INSTALL_WEB_INTERFACE=true
+LIGHTTPD_ENABLED=true
+CACHE_SIZE=10000
+DNS_FQDN_REQUIRED=true
+DNS_BOGUS_PRIV=true
+DNSMASQ_LISTENING=all
+PIHOLE_DNS_1={{ primary_nameserver }}
+PIHOLE_DNS_2={{ secondary_nameserver }}
+FTLCONF_RATE_LIMIT=5000/60

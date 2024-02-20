@@ -1,0 +1,10 @@
+---
+# handlers file for pihole
+
+- name: restart-pihole
+  ansible.builtin.command: 'pihole restartdns'
+
+- name: restart-lighttpd
+  ansible.builtin.service:
+    name: lighttpd
+    state: restarted

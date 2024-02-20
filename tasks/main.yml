@@ -1,0 +1,149 @@
+---
+
+- name: Install required software
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    update_cache: true
+    autoclean: true
+    cache_valid_time: 600
+    state: present
+  with_items: '{{ pihole_apps_needed }}'
+
+- name: Stop and disable systemd-resolved
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    state: stopped
+    enabled: false
+
+- name: Check for Pi-Hole binary
+  ansible.builtin.stat:
+    path: /usr/local/bin/pihole
+  register: pihole_installed
+
+- name: Create user account - pihole
+  ansible.builtin.user:
+    comment: "Pi-Hole NoLogin user"
+    name: pihole
+    append: true
+    groups:
+      - www-data
+    state: present
+    shell: /sbin/nologin
+    system: true
+
+- name: Create Pi-Hole directory
+  ansible.builtin.file:
+    path: /etc/pihole
+    state: directory
+    owner: pihole
+    group: pihole
+    mode: "0775"
+
+- name: Create pihole-setupVars.conf from template
+  ansible.builtin.template:
+    src: pihole-setupVars.conf.j2
+    dest: /etc/pihole/setupVars.conf
+    owner: pihole
+    group: pihole
+    mode: "0644"
+    backup: true
+  when: not pihole_installed.stat.exists
+
+- name: Set default nameservers
+  ansible.builtin.template:
+    src: etc.resolv.conf.j2
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: not pihole_installed.stat.exists
+
+- name: Download Pi-Hole installer
+  ansible.builtin.get_url:
+    url: https://install.pi-hole.net
+    dest: /tmp/install-pihole.sh
+    mode: "0740"
+  when: not pihole_installed.stat.exists
+
+- name: Install Pi-Hole
+  ansible.builtin.command: "/tmp/install-pihole.sh --unattended"
+  when: not pihole_installed.stat.exists
+
+- name: Copy local host list
+  ansible.builtin.copy:
+    src: custom.list
+    dest: /etc/pihole/custom.list
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart-pihole
+  tags: update_pihole
+
+- name: Copy custom cnames
+  ansible.builtin.copy:
+    src: 05-pihole-custom-cname.conf
+    dest: /etc/dnsmasq.d/05-pihole-custom-cname.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart-pihole
+  tags: update_pihole
+
+- name: Create secrets directory
+  ansible.builtin.file:
+    path: /root/.secrets
+    state: directory
+    mode: '0700'
+
+- name: Create cloudflare.ini from template
+  ansible.builtin.template:
+    src: root.secrets.cloudflare.ini.j2
+    dest: /root/.secrets/cloudflare.ini
+    owner: root
+    group: root
+    mode: "0400"
+
+- name: Create /root/deploy-hook.sh from template
+  ansible.builtin.template:
+    src: root.deploy-hook.sh.j2
+    dest: /root/deploy_hook.sh
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Create /root/update-certs.sh from template
+  ansible.builtin.template:
+    src: root.update-certs.sh.j2
+    dest: /root/update-certs.sh
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Create /etc/lighttpd/conf-enabled/20-pihole-external.conf from template
+  ansible.builtin.template:
+    src: etc.lighttpd.conf-enabled.20-pihole-external.conf.j2
+    dest: /etc/lighttpd/conf-enabled/20-pihole-external.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart-lighttpd
+
+- name: Check for existing certificate
+  ansible.builtin.stat:
+    path: /etc/letsencrypt/live/{{ inventory_hostname }}.{{ fqdn }}/fullchain.pem
+  register: letsencrypt_cert
+
+- name: Create the cert if absent
+  ansible.builtin.command: >-
+    certbot certonly --agree-tos -m {{ admin_email }} -n
+    --deploy-hook /root/deploy_hook.sh --dns-cloudflare
+    --dns-cloudflare-credentials /root/.secrets/cloudflare.ini
+    --dns-cloudflare-propagation-seconds 60 -d
+    {{ inventory_hostname }}.{{ fqdn }} --preferred-challenges dns-01
+  when: not letsencrypt_cert.stat.exists
+
+- name: Creates a crontab entry to renew certs
+  ansible.builtin.cron:
+    name: "Renew LE Certs"
+    special_time: daily
+    job: "/root/update-certs.sh >/dev/null 2>&1"

@@ -1,0 +1,4 @@
+#!/bin/bash
+cat /etc/letsencrypt/live/{{ inventory_hostname }}.{{ fqdn }}/privkey.pem /etc/letsencrypt/live/{{ inventory_hostname }}.{{ fqdn }}/cert.pem > /etc/letsencrypt/live/{{ inventory_hostname }}.{{ fqdn }}/combined.pem
+chmod 644 /etc/letsencrypt/live/{{ inventory_hostname }}.{{ fqdn }}/combined.pem
+exit 0
